@@ -6,4 +6,5 @@ Allows individual users to control whether or not the gravatar service is contac
 - Install and activate the plugin
 - By default, no users' Gravatars are displayed to anyone
 - To enable/disable displaying your gravatar to logged in users, go to wp-admin > Users > Your Profile and change the settings under Profile Picture.
-- Note: While this plugin is active, Gravatars will NEVER be displayed to logged out users. This includes visitors like search engines too, for example.
+- Note: While this plugin is active, users' Gravatars will NEVER be displayed to logged out users (including visitors like search engines.)
+- Note: While this plugin is active, unregistered commenters' comments also will NEVER display a Gravatar.
