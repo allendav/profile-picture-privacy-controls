@@ -1,8 +1,8 @@
 <?php
 /*
-Plugin Name: Profile Picture Privacy Controls by Allendav
+Plugin Name: Profile Picture Privacy
 Plugin URI: http://www.allendav.com/
-Description: Allow users to control whether or not the Gravatar service is contacted for their profile picture. Requires WordPress 4.7 or higher.
+Description: Gives users control over whether or not to opt-in to Gravatar. Avoids revealing Gravatars to logged-out visitors.
 Version: 1.0.0
 Author: allendav
 Author URI: http://www.allendav.com
@@ -26,33 +26,114 @@ class Allendav_Profile_Picture_Privacy {
 	}
 
 	protected function __construct() {
+		add_action( 'admin_init', array( $this, 'add_privacy_policy_content' ) );
 		add_filter( 'pre_get_avatar_data', array( $this, 'pre_get_avatar_data' ), 10, 2 );
 		add_filter( 'user_profile_picture_description', array( $this, 'user_profile_picture_description' ), 10, 2 );
 		add_action( 'personal_options_update', array( $this, 'personal_options_update' ) );
 		add_action( 'admin_footer', array( $this, 'admin_footer' ) );
 	}
 
-	function is_user_using_gravatar( $user_id ) {
-		return get_user_meta( $user_id, 'ppp_using_gravatar', true );
+	function add_privacy_policy_content() {
+		if ( ! function_exists( 'wp_add_privacy_policy_content' ) ) {
+			return;
+		}
+
+		$content = sprintf(
+			__( 'By default, we do not send your email address to the
+			Gravatar service, nor enable Gravatar powered profile
+			pictures for any user. Registered users may enable
+			their Gravatar by editing their
+			<a href="%s" target="_blank">profile</a>.
+
+			To further protect your privacy, even if you enable your
+			Gravatar on your profile, it will only be shared with
+			logged-in users of the site. Search engines, visitors,
+			and logged-out users will not be able to see Gravatars
+			for any user on this site.
+			',
+			'allendav-profile-picture-privacy' ),
+			admin_url( 'profile.php#profile-picture-privacy' )
+		);
+
+		wp_add_privacy_policy_content(
+			'Profile Picture Privacy',
+			wp_kses_post( wpautop( $content, false ) )
+		);
 	}
 
-	function pre_get_avatar_data( $args, $id_or_email ) {
-		$user = get_user_by( 'ID', $id_or_email );
-		if ( ! empty( $user ) ) {
-			if ( $this->is_user_using_gravatar( $user->ID ) ) {
-				return $args;
+	function is_user_using_gravatar( $user_id ) {
+		if ( empty( $user_id ) ) {
+			return false;
+		}
+
+		$using_gravatar = get_user_meta( $user_id, 'ppp_using_gravatar', true );
+		return ! empty( $using_gravatar );
+	}
+
+	function get_user_id_from_argument( $argument ) {
+		// Is the argument a user ID?
+		if ( ! is_object( $argument ) ) {
+			$user = get_user_by( 'ID', $argument );
+			if ( ! empty( $user ) ) {
+				return $user->ID;
+			}
+
+			// Is the argument an email? Does it resolve to a user ID?
+			if ( is_email( $argument ) ) {
+				$user = get_user_by( 'email', $argument );
+				if ( ! empty( $user ) ) {
+					return (int) $user->ID;
+				}
+			}
+
+			return false;
+		}
+
+		// Is the argument a WP_User object?
+		if ( is_a( $argument, 'WP_User' ) ) {
+			return (int) $argument->ID;
+		}
+
+		// Is the argument a WP_Post object?
+		if ( is_a( $argument, 'WP_Post' ) ) {
+			return (int) $argument->post_author;
+		}
+
+		// Is the argument a WP_Comment object?
+		if ( isset( $argument->comment_ID ) ) {
+			$comment = get_comment( $argument->comment_ID );
+			if ( ! is_null( $comment ) ) {
+				$user_ID = (int) $comment->user_id;
+				if ( 0 < $user_ID ) {
+					return $user_ID;
+				}
 			}
 		}
 
-		// TODO - allow unregistered users to opt-in to using their gravatar as well
-		// for now, they get mystery
+		return false;
+	}
 
-		$args[ 'url' ] = plugins_url( 'images/mystery.png', __FILE__ );
+	function pre_get_avatar_data( $args, $argument ) {
+		$show_gravatar = false;
+
+		// We only show gravatars to logged in users.
+		// No need to test the argument if no one is logged in.
+		if ( is_user_logged_in() ) {
+			$user_id = $this->get_user_id_from_argument( $argument );
+			if ( $user_id ) {
+				$show_gravatar = $this->is_user_using_gravatar( $user_id);
+			}
+		}
+
+		if ( ! $show_gravatar ) {
+			$args[ 'url' ] = plugins_url( 'images/mystery.png', __FILE__ );
+		}
+
 		return $args;
 	}
 
 	function user_profile_picture_description( $description, $profile_user ) {
-		if ( ! IS_PROFILE_PAGE ) {
+		if ( ! defined( 'IS_PROFILE_PAGE' ) || ! IS_PROFILE_PAGE ) {
 			return $description;
 		}
 
@@ -61,7 +142,7 @@ class Allendav_Profile_Picture_Privacy {
 	}
 
 	function admin_footer() {
-		if ( ! IS_PROFILE_PAGE ) {
+		if ( ! defined( 'IS_PROFILE_PAGE' ) || ! IS_PROFILE_PAGE ) {
 			return;
 		}
 
@@ -79,7 +160,7 @@ class Allendav_Profile_Picture_Privacy {
 
 		$allow_label = __( 'Use the Gravatar service for my profile picture.', 'allendav-profile-picture-privacy' );
 		$allow_descr = sprintf(
-			__( 'A hashed version of your email address will be provided to the <a href="%s">Gravatar</a> service and will appear in the code for pages on this site. This means that people could use search engines and other tools to find your comments and articles on other websites using just that information.', 'allendav-profile-picture-privacy' ),
+			__( 'A weakly encoded version of your email address will be provided to the <a href="%s">Gravatar</a> service and will appear in the code for pages on this site to any logged-in user.', 'allendav-profile-picture-privacy' ),
 			'https://en.gravatar.com'
 		);
 
@@ -124,7 +205,7 @@ class Allendav_Profile_Picture_Privacy {
 	}
 
 	function personal_options_update( $user_id ) {
-		if ( ! IS_PROFILE_PAGE ) {
+		if ( ! defined( 'IS_PROFILE_PAGE' ) || ! IS_PROFILE_PAGE ) {
 			return;
 		}
 
