@@ -1,11 +1,11 @@
 <?php
 /*
-Plugin Name: Profile Picture Privacy
-Plugin URI: http://www.allendav.com/
+Plugin Name: Profile Picture Privacy Controls
+Plugin URI: https://github.com/allendav/profile-picture-privacy-controls
 Description: Gives users control over whether or not to opt-in to Gravatar. Avoids revealing Gravatars to logged-out visitors.
 Version: 1.0.0
 Author: allendav
-Author URI: http://www.allendav.com
+Author URI: https://www.allendav.com
 License: GPL2
 */
 
